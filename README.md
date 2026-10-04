@@ -49,6 +49,26 @@ gfa-to-pairwise-paf ecoli.gfa.gz --reference Sakai#0 \
 | `--no-x`                   | Write private runs as `I` then `D` instead of pairing them as `X`.                         |
 | `--hold-queries`           | Align every query walk after the whole file is read; see [Line order](#line-order).        |
 
+### From a GBZ
+
+The converter reads GFA only, so convert a `.gbz` with vg first:
+
+```bash
+vg convert -f graph.gbz | gfa-to-pairwise-paf --reference GRCh38#0 > out.paf
+```
+
+For one region rather than whole chromosomes,
+[@gmod/gbz-base](https://github.com/GMOD/gbz-base-js) writes the same kind of
+PAF from a gbz-base database, local or over HTTP, without reading the whole
+graph. A [haplotype index](https://github.com/GMOD/gbz-haplotype-index) beside
+the database names each haplotype:
+
+```bash
+gbz-base-query graph.gbz.db --haplotype-index graph.haplotype-index.db \
+  --sample GRCh38 --contig chr6 --interval 31500000..31501000 \
+  --against GRCh38#0 > region.paf
+```
+
 ## How records are built
 
 The converter indexes each reference contig as node → (rank, offset,
