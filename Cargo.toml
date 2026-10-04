@@ -1,0 +1,20 @@
+[package]
+name = "gfa-to-pairwise-paf"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Unpacks pairwise alignments, as PAF, from a pangenome graph's GFA"
+license = "Apache-2.0"
+repository = "https://github.com/cmdcolin/gfa-to-pairwise-paf-rs"
+readme = "README.md"
+keywords = ["pangenome", "gfa", "paf", "bioinformatics"]
+categories = ["science", "command-line-utilities"]
+exclude = ["tests/data", ".github", "scripts"]
+
+[dependencies]
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
