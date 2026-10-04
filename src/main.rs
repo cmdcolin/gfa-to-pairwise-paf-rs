@@ -273,6 +273,41 @@ impl Run {
         out.flush()
     }
 
+    fn write_summary(&self, out: &mut impl Write, consumed: u64, elapsed: f64) -> io::Result<()> {
+        for query in &self.converter.queries {
+            out.write_all(&query.name)?;
+            writeln!(
+                out,
+                ": {} walks, {} anchors -> {} chains, {} bp =, {} columns",
+                query.walks, query.anchors, query.chains, query.matches, query.columns
+            )?;
+        }
+        let unseen: Vec<_> = self
+            .args
+            .queries
+            .iter()
+            .flatten()
+            .filter(|q| !self.converter.has_query(q))
+            .map(|q| String::from_utf8_lossy(q).into_owned())
+            .collect();
+        let megabytes = consumed as f64 / 1e6;
+        writeln!(
+            out,
+            "{} nodes, {} {} steps on {} walks; {megabytes:.0} MB in {elapsed:.1}s ({:.0} MB/s){}",
+            self.nodes.count,
+            self.reference.offsets.len(),
+            String::from_utf8_lossy(&self.args.reference),
+            self.reference.walks.len(),
+            megabytes / elapsed.max(1e-9),
+            if unseen.is_empty() {
+                String::new()
+            } else {
+                format!("; no walks for {}", unseen.join(","))
+            }
+        )?;
+        out.flush()
+    }
+
     fn write_chrom_sizes(
         &self,
         directory: &str,
@@ -371,39 +406,8 @@ fn run(args: Args) -> Result<(), String> {
             .map_err(|e| format!("{directory}: {e}"))?;
     }
     let elapsed = started.elapsed().as_secs_f64();
-    for query in &run.converter.queries {
-        eprintln!(
-            "{}: {} walks, {} anchors -> {} chains, {} bp =, {} columns",
-            String::from_utf8_lossy(&query.name),
-            query.walks,
-            query.anchors,
-            query.chains,
-            query.matches,
-            query.columns
-        );
-    }
-    let unseen: Vec<_> = run
-        .args
-        .queries
-        .iter()
-        .flatten()
-        .filter(|q| !run.converter.has_query(q))
-        .map(|q| String::from_utf8_lossy(q).into_owned())
-        .collect();
-    let megabytes = consumed as f64 / 1e6;
-    eprintln!(
-        "{} nodes, {} {reference_name} steps on {} walks; {megabytes:.0} MB in {elapsed:.1}s ({:.0} MB/s){}",
-        run.nodes.count,
-        run.reference.offsets.len(),
-        run.reference.walks.len(),
-        megabytes / elapsed.max(1e-9),
-        if unseen.is_empty() {
-            String::new()
-        } else {
-            format!("; no walks for {}", unseen.join(","))
-        }
-    );
-    Ok(())
+    run.write_summary(&mut BufWriter::new(io::stderr().lock()), consumed, elapsed)
+        .map_err(|e| format!("writing the summary: {e}"))
 }
 
 fn main() {
