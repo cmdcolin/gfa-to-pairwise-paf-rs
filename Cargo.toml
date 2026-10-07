@@ -9,7 +9,7 @@ repository = "https://github.com/cmdcolin/gfa-to-pairwise-paf-rs"
 readme = "README.md"
 keywords = ["pangenome", "gfa", "paf", "bioinformatics"]
 categories = ["science", "command-line-utilities"]
-exclude = ["tests", ".github", "scripts"]
+exclude = ["tests", ".github", "scripts", "PUBLISHING.md"]
 
 [dependencies]
 flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
