@@ -30,17 +30,17 @@ cargo install gfa-to-pairwise-paf
 ```bash
 # HPRC: two haplotypes against GRCh38, with a chrom.sizes per query
 pigz -dc hprc-v2.1-mc-grch38.gfa.gz \
-  | gfa-to-pairwise-paf --reference GRCh38#0 \
-      --queries HG01109#1,HG01123#1 --chrom-sizes-dir sizes/ > hprc.paf
+  | gfa-to-pairwise-paf --reference 'GRCh38#0' \
+      --queries 'HG01109#1,HG01123#1' --chrom-sizes-dir sizes/ > hprc.paf
 
 # any path can be the reference, so two strains align to each other directly
-gfa-to-pairwise-paf ecoli.gfa.gz --reference Sakai#0 \
-  --queries CFT073#0 > sakai_vs_cft073.paf
+gfa-to-pairwise-paf ecoli.gfa.gz --reference 'Sakai#0' \
+  --queries 'CFT073#0' > sakai_vs_cft073.paf
 ```
 
 | Option                     | Effect                                                                                     |
 | -------------------------- | ------------------------------------------------------------------------------------------ |
-| `--reference <sample#hap>` | Required. A bare sample means `#0`.                                                        |
+| `--reference <sample#hap>` | Required. A bare sample means `#0`, and `sample.N` means `sample#N`.                       |
 | `--queries <list>`         | Comma-separated `sample#hap`s; default every other one in the file.                        |
 | `--max-gap <bp>`           | Private bp a chain may skip on either side between two anchors (default 10000).            |
 | `--min-block <bp>`         | Drop records spanning fewer reference bp.                                                  |
@@ -54,7 +54,7 @@ gfa-to-pairwise-paf ecoli.gfa.gz --reference Sakai#0 \
 The converter reads GFA only, so convert a `.gbz` with vg first:
 
 ```bash
-vg convert -f graph.gbz | gfa-to-pairwise-paf --reference GRCh38#0 > out.paf
+vg convert -f graph.gbz | gfa-to-pairwise-paf --reference 'GRCh38#0' > out.paf
 ```
 
 For one region rather than whole chromosomes,
@@ -66,7 +66,7 @@ the database names each haplotype:
 ```bash
 gbz-base-query graph.gbz.db --haplotype-index graph.haplotype-index.db \
   --sample GRCh38 --contig chr6 --interval 31500000..31501000 \
-  --against GRCh38#0 > region.paf
+  --against 'GRCh38#0' > region.paf
 ```
 
 ### Several targets: a series, or all against all
@@ -101,9 +101,13 @@ it:
 ```
 
 Both loops write each pair once, with the earlier haplotype in the list as the
-target, and stop at the first run that fails. The opposite direction of a pair
-is a separate alignment and not a mirror image: chains follow the query's walk,
-and `--min-block` counts reference bp.
+target. The opposite direction of a pair is a separate alignment and not a
+mirror image: chains follow the query's walk, and `--min-block` counts
+reference bp.
+
+Each loop stops at the first run that fails, as a run does when its reference
+has no walk. The last haplotype in the list is only ever a query, so misspelling
+it fails no run and shows only as `no walks for` on stderr.
 
 The loops pass `--hold-queries` because a run without that flag stops when the
 target has walks both before and after a query walk that shares the later
