@@ -1,24 +1,63 @@
 name: Release
 
+# Bumping `version` in Cargo.toml on main is the whole release. When no GitHub
+# release exists for v<version>, this workflow tests the commit, builds the
+# binaries, publishes the crate, then creates the tag and the release with the
+# binaries attached. The release comes last, so a run that fails partway leaves
+# none, and running the workflow again finishes the job. Run from another
+# branch, it rehearses everything and publishes nothing.
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
+    paths:
+      - Cargo.toml
+      - .github/workflows/release.yml
+  workflow_dispatch:
 
-permissions:
-  contents: write
+concurrency: release
+
+permissions: {}
 
 jobs:
-  create:
+  plan:
+    name: Is this version released?
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      needed: ${{ steps.plan.outputs.needed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+      - id: plan
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=v$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "$tag is already released"
+            exit 0
+          fi
+          # a tag pushed by hand is fine, as long as it marks this commit
+          if tagged=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$tag" --jq .sha 2> /dev/null) \
+            && [ "$tagged" != "$GITHUB_SHA" ]; then
+            echo "::error::$tag already points at $tagged, not at $GITHUB_SHA"
+            exit 1
+          fi
+          echo "needed=true" >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: plan
+    if: needs.plan.outputs.needed == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/push.yml
 
   binaries:
-    needs: create
+    name: Build ${{ matrix.target }}
+    needs: test
     strategy:
       matrix:
         include:
@@ -27,6 +66,8 @@ jobs:
           - target: aarch64-apple-darwin
             os: macos-latest
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
@@ -36,16 +77,76 @@ jobs:
       - if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y musl-tools
       - run: cargo build --release --locked --target ${{ matrix.target }}
+      # No version in the file name, so releases/latest/download/<name> is an
+      # install URL that never needs editing.
       - name: Package
         shell: bash
         run: |
-          name=gfa-to-pairwise-paf-$GITHUB_REF_NAME-${{ matrix.target }}
+          name=gfa-to-pairwise-paf-${{ matrix.target }}
           mkdir "$name"
           cp target/${{ matrix.target }}/release/gfa-to-pairwise-paf README.md LICENSE "$name"/
           tar czf "$name.tar.gz" "$name"
           shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
           "$name/gfa-to-pairwise-paf" --version
-      - run: gh release upload "$GITHUB_REF_NAME" gfa-to-pairwise-paf-*.tar.gz*
-        shell: bash
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.target }}
+          path: gfa-to-pairwise-paf-*.tar.gz*
+          if-no-files-found: error
+
+  crate:
+    name: Publish to crates.io
+    needs: [plan, binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # crates.io trusted publishing: the crate's settings list this repository
+      # and this workflow file as its publisher, and the job trades its OIDC
+      # token for a short-lived upload token, so no API token lives in the
+      # repository's secrets
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: stable
+      # a re-run after a later job failed finds the version already uploaded
+      - id: index
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          if curl -fsS https://index.crates.io/gf/a-/gfa-to-pairwise-paf \
+            | jq -e --arg version "${TAG#v}" 'select(.vers == $version)' > /dev/null; then
+            echo "${TAG#v} is already on crates.io"
+          else
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: github.ref != 'refs/heads/main'
+        run: cargo publish --locked --dry-run
+      - if: github.ref == 'refs/heads/main' && steps.index.outputs.missing == 'true'
+        id: auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+      - if: github.ref == 'refs/heads/main' && steps.index.outputs.missing == 'true'
+        run: cargo publish --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+
+  release:
+    name: Tag and release
+    needs: [plan, crate]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      # to create the tag and the release. Kept in its own job so the crates.io
+      # job's token stays read-only.
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          merge-multiple: true
+      - run: gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes dist/*
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.plan.outputs.tag }}

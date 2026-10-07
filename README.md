@@ -16,7 +16,7 @@ A static binary for Linux x86_64 or macOS on Apple silicon, from the
 [releases](https://github.com/cmdcolin/gfa-to-pairwise-paf-rs/releases):
 
 ```bash
-curl -fL https://github.com/cmdcolin/gfa-to-pairwise-paf-rs/releases/download/v1.0.0/gfa-to-pairwise-paf-v1.0.0-x86_64-unknown-linux-musl.tar.gz | tar xz
+curl -fL https://github.com/cmdcolin/gfa-to-pairwise-paf-rs/releases/latest/download/gfa-to-pairwise-paf-x86_64-unknown-linux-musl.tar.gz | tar xz
 ```
 
 or build it from crates.io with Rust 1.85 or later:
