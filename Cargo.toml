@@ -1,6 +1,6 @@
 [package]
 name = "gfa-to-pairwise-paf"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 rust-version = "1.85"
 description = "Unpacks pairwise alignments, as PAF, from a pangenome graph's GFA"
