@@ -49,6 +49,42 @@ gfa-to-pairwise-paf ecoli.gfa.gz --reference Sakai#0 \
 | `--no-x`                   | Write private runs as `I` then `D` instead of pairing them as `X`.                         |
 | `--hold-queries`           | Align every query walk after the whole file is read; see [Line order](#line-order).        |
 
+### A series, or all against all
+
+One run aligns against one reference. PAF has no header, so the rows of several
+runs concatenate into one file holding every pair. A series for a stacked
+multi-way view aligns each haplotype against the one before it:
+
+```bash
+set -- GRCh38#0 HG01109#1 HG01109#2 HG01123#1
+while [ $# -gt 1 ]; do
+  gfa-to-pairwise-paf hprc.gfa.gz --reference "$1" --queries "$2" \
+    --hold-queries
+  shift
+done > series.paf
+```
+
+All against all makes each haplotype the target of every one listed after it:
+
+```bash
+set -- K12#0 Sakai#0 CFT073#0 EDL933#0
+while [ $# -gt 1 ]; do
+  gfa-to-pairwise-paf ecoli.gfa.gz --reference "$1" \
+    --queries "$(IFS=,; shift; echo "$*")" --hold-queries
+  shift
+done > all_vs_all.paf
+```
+
+Both loops write each pair once, with the earlier haplotype in the list as the
+target. The opposite direction is a separate alignment and not a mirror image:
+chains follow the query's walk, and `--min-block` counts reference bp.
+
+`--hold-queries` is there because a freely chosen target may have walks after
+its queries'; see [Line order](#line-order). Every run reads the GFA again, so
+save a stream such as `vg convert` output to a file first. `--chrom-sizes-dir`
+writes sizes for queries only, so the first haplotype in the list needs one run
+that queries it.
+
 ### From a GBZ
 
 The converter reads GFA only, so convert a `.gbz` with vg first:
