@@ -201,6 +201,22 @@ indel each way, an inversion, a contig in two W pieces, and a node the reference
 visits twice. The tests are the Python tool's, assertion for assertion, and CI
 runs every fixture under every flag set through both converters.
 
+## See also
+
+- [jbrowse-plugin-graphgenomeviewer](https://github.com/GMOD/jbrowse-plugin-graphgenomeviewer) -
+  JBrowse 2 plugin that browses these graphs by locus
+- [gfa-to-tabix](https://github.com/GMOD/gfa-to-tabix) - indexes a GFA by genome
+  coordinate
+- [@gmod/gbz-base](https://github.com/GMOD/gbz-base-js) - range-request reader
+  for `.gbz.db` databases
+- [BandageJS](https://github.com/cmdcolin/BandageJS) - standalone page for GFA
+  and gbz-base graphs
+
+Tutorials on [jbrowse.org](https://jbrowse.org/jb2/docs/tutorials/)
+
+- [HPRC part 2: haplotypes against each other](https://jbrowse.org/jb2/docs/tutorials/pangenome_hprc_haplotypes/)
+- [Minigraph-Cactus](https://jbrowse.org/jb2/docs/tutorials/pangenome_cactus/)
+
 ## License
 
 Apache 2.0, as the Python tool.
